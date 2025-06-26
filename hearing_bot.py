@@ -3,6 +3,7 @@ import sqlite3
 from fetch import fetch_all, fetch_event_detail
 from extract import normalize_date, normalize_title, normalize_committee, parse_date
 from slack_sdk import WebClient
+from sql import post_upcoming, post_last_update
 
 
 # ─── Setup SQLite ─────────────────────────────────────
@@ -20,10 +21,10 @@ CREATE TABLE IF NOT EXISTS hearings (
 """)
 conn.commit()
 
-
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+
     # Open SQLite DB
     conn = sqlite3.connect("hearings.db")
     c    = conn.cursor()
@@ -40,16 +41,14 @@ def main():
     known_errors = [118388, 118320, 118290, 118290, 58326] 
     new_hearings = []
     upcoming_hearings = [] 
-    
+
     try:
-        # events = fetch_all("hearing") + fetch_all("meeting") 
-        events = fetch_all("hearing") 
+        events = fetch_all("hearing") + fetch_all("meeting") 
+        # events = fetch_all("hearing") 
     except Exception as e:
         print(f"Error fetching events: {e}")
         return
 
-    # 3) Begin a single transaction for all your lookups + inserts
-    # with conn:
     for event in events:
         ev_id = event.get("eventId") or str(event.get("jacketNumber"))
 
@@ -76,6 +75,8 @@ def main():
             new_hearings.append((ev_id, date_str.isoformat(), title, committee, today))
             # print(f"New hearing found: {date_str} | {committee} | {title}")
         except Exception as e:
+            if ev_id in known_errors:
+                continue
             print(f"Error parsing date for {ev_id}: {e}")
             continue
         # Not past = post an update
@@ -83,7 +84,7 @@ def main():
             upcoming_hearings.append((date_str, committee, title))
             # print(f"Upcoming hearing")
             continue 
-
+ 
     with conn:
         c.executemany(
             "INSERT INTO hearings (id, date, title, committee, date_inserted) "
@@ -91,9 +92,12 @@ def main():
             new_hearings
         )
 
-    conn.close()
-
     print(f"\nPosted {len(new_hearings)} new hearings")
+    post_upcoming(c)
+
+    post_last_update(c)
+
+    conn.close()
 
 
 main()
