@@ -1,7 +1,7 @@
 from datetime import datetime, date
 import sqlite3
 from fetch import fetch_all, fetch_event_detail
-from extract import normalize_date, normalize_title, normalize_committee, parse_date
+from extract import get_date, get_title, get_committee, get_URL, parse_date
 from slack_sdk import WebClient
 from sql import post_upcoming, post_last_update
 
@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS hearings (
     id        TEXT PRIMARY KEY,
     date      TEXT,
     title     TEXT,
-    committee TEXT,      
+    committee TEXT,
+    URL       TEXT,      
     date_inserted TEXT
 )
 """)
@@ -63,38 +64,35 @@ def main():
 
         # Not in DB → fetch detail and parse date
         detail = fetch_event_detail(event["url"])
-        title     = normalize_title(detail)
-        committee = normalize_committee(detail)
-        date_obj   = normalize_date(detail)
+        title     = get_title(detail)
+        committee = get_committee(detail)
+        date_obj  = get_date(detail)
+        url       = get_URL(detail)
 
         today = date.today().isoformat()
 
         try:
             dt = parse_date(date_obj)
             date_str = dt.date()
-            new_hearings.append((ev_id, date_str.isoformat(), title, committee, today))
+            new_hearings.append((ev_id, date_str.isoformat(), title, committee, url, today))
             # print(f"New hearing found: {date_str} | {committee} | {title}")
         except Exception as e:
             if ev_id in known_errors:
                 continue
             print(f"Error parsing date for {ev_id}: {e}")
             continue
-        # Not past = post an update
-        if date_obj > today: 
-            upcoming_hearings.append((date_str, committee, title))
-            # print(f"Upcoming hearing")
-            continue 
  
     with conn:
         c.executemany(
-            "INSERT INTO hearings (id, date, title, committee, date_inserted) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO hearings (id, date, title, committee, url, date_inserted) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             new_hearings
         )
 
-    print(f"\nPosted {len(new_hearings)} new hearings")
-    post_upcoming(c)
+    print(f"New hearings: {len(new_hearings)}")
 
+    post_upcoming(c)
+    
     post_last_update(c)
 
     conn.close()
