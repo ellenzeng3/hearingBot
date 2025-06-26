@@ -1,6 +1,6 @@
 from datetime import datetime, date
 import sqlite3
-from fetch import fetch_all, fetch_event_detail
+from fetch import fetch_all, fetch_event_detail, backfill_missing_urls
 from extract import get_date, get_title, get_committee, get_URL, parse_date
 from slack_sdk import WebClient
 from sql import post_upcoming, post_last_update
@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS hearings (
     title     TEXT,
     committee TEXT,
     URL       TEXT,      
+    API_call  TEXT,
     date_inserted TEXT
 )
 """)
@@ -58,23 +59,28 @@ def main():
         # skip if already seen
         if ev_id in seen_ids:
             continue 
-        elif ev_id in known_errors:
-            continue
+        # elif ev_id in known_errors:
+        #     continue
         seen_ids.add(ev_id)
 
         # Not in DB → fetch detail and parse date
-        detail = fetch_event_detail(event["url"])
-        title     = get_title(detail)
-        committee = get_committee(detail)
-        date_obj  = get_date(detail)
-        url       = get_URL(detail)
+        try:
+            api_call = event["url"]
+            detail = fetch_event_detail(api_call)
+            title     = get_title(detail)
+            committee = get_committee(detail)
+            date_obj  = get_date(detail)
+            url       = get_URL(detail)
+        except Exception as e:
+            print(f"Error processing event {ev_id}: {e}")
+            continue 
 
         today = date.today().isoformat()
 
         try:
             dt = parse_date(date_obj)
-            date_str = dt.date()
-            new_hearings.append((ev_id, date_str.isoformat(), title, committee, url, today))
+            date_str = dt.date().isoformat()
+            new_hearings.append((ev_id, date_str, title, committee, url, today, api_call))
             # print(f"New hearing found: {date_str} | {committee} | {title}")
         except Exception as e:
             if ev_id in known_errors:
@@ -84,8 +90,8 @@ def main():
  
     with conn:
         c.executemany(
-            "INSERT INTO hearings (id, date, title, committee, url, date_inserted) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO hearings (id, date, title, committee, url, date_inserted, API_call) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             new_hearings
         )
 
@@ -93,7 +99,9 @@ def main():
 
     post_upcoming(c)
     
-    post_last_update(c)
+    # post_last_update(c)
+
+    backfill_missing_urls(c)
 
     conn.close()
 

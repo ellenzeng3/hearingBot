@@ -28,8 +28,9 @@ def post_upcoming(c):
 
 def post_last_update(c):
     c.execute("SELECT MAX(date_inserted) FROM hearings WHERE date(date) >= date('now')")
-    row = c.fetchone()
-    if not row or row[0] is None:
+    last_date = c.fetchone()[0]
+    print(last_date)
+    if not last_date:
         print("No insertions found.")
         return
 
@@ -38,13 +39,14 @@ def post_last_update(c):
     c.execute("""
         SELECT 
             date,
-            title,
             committee,
+            title,
             url
         FROM hearings
         WHERE date(date) >= date('now')
+        AND date(date_inserted) = ?
         ORDER BY date(date) ASC
-    """)
+    """, (last_date,))
 
     rows = c.fetchall()
     if not rows:
@@ -74,46 +76,3 @@ def format_hearings_grouped(rows):
             output.append(f"* {committee} | <{title} | {url}>")
         output.append("")
     print("\n".join(output).rstrip())
-
-
-def backfill_missing_urls(c):
-    c.execute("""
-        SELECT id, url
-        FROM hearings
-        WHERE (url IS NULL OR url = '')
-          AND date(date) >= date('now')
-    """)
-    rows = c.fetchall()
-
-    if not rows:
-        print("No missing URLs to backfill.")
-        c.close()
-        return
-
-    print(f"Backfilling URLs for {len(rows)} hearings…")
-
-    for ev_id, detail_url in rows:
-        detail = fetch_event_detail(detail_url)            # your existing detail fetcher
-        docs   = detail.get("documents", [])
-        if not docs:
-            # still no docs published
-            continue
-
-        # take the first document’s URL
-        doc_url = docs[0].get("url")
-        if not doc_url:
-            continue
-
-        # 2) Update the row with the new URL and refresh the insert timestamp
-        now_ts = datetime.now(timezone.utc).isoformat()
-        c.execute("""
-            UPDATE hearings
-               SET url          = ?,
-                   date_inserted= ?
-             WHERE id = ?
-        """, (doc_url, now_ts, ev_id))
-        print(f"  • Filled URL for {ev_id}: {doc_url}")
-
-    conn.commit()
-    conn.close()
-    print("Done backfilling.")
