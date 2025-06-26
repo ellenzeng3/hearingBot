@@ -41,8 +41,7 @@ def main():
     print(f"Seen IDs loaded: {len(seen_ids)}")
 
     known_errors = [118388, 118320, 118290, 118290, 58326] 
-    new_hearings = []
-    upcoming_hearings = [] 
+    new_hearings = [] 
 
     try:
         events = fetch_all("hearing") + fetch_all("meeting") 
@@ -101,7 +100,7 @@ def main():
     
     # post_last_update(c)
 
-    backfill_missing_urls(c)
+    # backfill_missing_urls(c)
 
     conn.close()
 

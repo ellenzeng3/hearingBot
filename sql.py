@@ -73,6 +73,11 @@ def format_hearings_grouped(rows):
     for date_str in sorted(by_date):
         output.append(date_str)
         for title, committee, url in by_date[date_str]:
-            output.append(f"* {committee} | <{title} | {url}>")
+            print(url)
+            if url is None or url == "":
+                print("hello")
+                output.append(f"* {committee} | {title}")
+            else:
+                output.append(f"* {committee} | <{title} | {url}>")
         output.append("")
     print("\n".join(output).rstrip())

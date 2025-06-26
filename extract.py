@@ -17,11 +17,7 @@ def get_committee(detail: dict) -> str:
     committees = detail.get("committees", "")
     return committees[0].get("name", "") if committees else ""
 
-def get_URL(detail: dict) -> str:
-    """
-    Returns the URL for the event detail.
-    """
-
+def get_URL(detail: dict) -> str: 
     if detail.get("meetingDocuments"):
         meetingDocuments = detail.get("meetingDocuments", [])
         return meetingDocuments[0].get("url", "") if meetingDocuments else ""

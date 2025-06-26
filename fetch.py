@@ -101,11 +101,9 @@ def backfill_missing_urls(c):
         detail = fetch_event_detail(api_call)            # your existing detail fetcher
         url    = get_URL(detail)
         if not url:
-            # still no docs published
             print(f"still no URL for {ev_id}, skipping")
             continue
 
-        # 2) Update the row with the new URL and refresh the insert timestamp
         c.execute("""
             UPDATE hearings
                SET url          = ?,
@@ -113,7 +111,7 @@ def backfill_missing_urls(c):
         """, (url, ev_id))
         print(f"  • Filled URL for {ev_id}: {url}")
         c.commit()
-        
+
     c.close()
     print("Done backfilling.")
     
