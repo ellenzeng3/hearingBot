@@ -26,6 +26,9 @@ def get_URL(detail: dict) -> str:
         return meetingDocuments[1].get("url", "") if meetingDocuments else ""
     return 
 
+def get_status(detail: dict) -> str:
+    return detail.get("meetingStatus", "Unknown") or detail.get("status", "Unknown")
+
 def parse_date(s):
     for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"):
         try:

@@ -2,6 +2,7 @@ import requests
 from datetime import date
 from dotenv import load_dotenv
 import os 
+import sqlite3
 from pathlib import Path
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
@@ -79,39 +80,3 @@ def fetch_event_detail(url):
     except Exception as e:
         print(f"Error fetching event detail: {e}")
         return {}
-    
-
-def backfill_missing_urls(c):
-    c.execute("""
-        SELECT id, API_call
-        FROM hearings
-        WHERE (url IS NULL OR url = '')
-          AND date(date) >= date('now')
-    """)
-    rows = c.fetchall()
-
-    if not rows:
-        print("No upcoming hearings' missing URLs to backfill.")
-        c.close()
-        return
-
-    print(f"Backfilling URLs for {len(rows)} hearings…")
-
-    for ev_id, api_call in rows:
-        detail = fetch_event_detail(api_call)            # your existing detail fetcher
-        url    = get_URL(detail)
-        if not url:
-            print(f"still no URL for {ev_id}, skipping")
-            continue
-
-        c.execute("""
-            UPDATE hearings
-               SET url          = ?,
-             WHERE id = ?
-        """, (url, ev_id))
-        print(f"  • Filled URL for {ev_id}: {url}")
-        c.commit()
-
-    c.close()
-    print("Done backfilling.")
-    
